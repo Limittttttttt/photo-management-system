@@ -236,7 +236,7 @@ const performSearch = async () => {
   lastQuery.value = query
 
   try {
-    const response = await axios.get('http://localhost:8088/aisearch/search', {
+    const response = await axios.get('/aisearch/search', {
       params: { userId, query }
     })
 
@@ -267,7 +267,7 @@ const fetchSuggestions = async (query, cb) => {
   }
 
   try {
-    const response = await axios.get('http://localhost:8088/aisearch/suggestions', {
+    const response = await axios.get('/aisearch/suggestions', {
       params: { userId, prefix: query }
     })
 

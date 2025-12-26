@@ -317,7 +317,7 @@ export default {
       this.loading = true
       try {
         const userId = this.userData.id
-        const response = await axios.get(`http://localhost:8088/gallery/user/${userId}`)
+        const response = await axios.get(`/gallery/user/${userId}`)
         
         if (response.data) {
           const photos = response.data.map(image => ({

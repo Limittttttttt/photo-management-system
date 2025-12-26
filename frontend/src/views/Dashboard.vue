@@ -117,12 +117,20 @@ export default {
       carouselImages: [],
       selectedImageIds: [],
       hasSelectedImages: false,
-      baseURL: 'http://localhost:8088',
       // 轮播状态管理
       isCarouselReady: false
     }
   },
   computed: {
+    baseURL() {
+      // 自动检测API地址：优先使用环境变量，否则根据当前主机名判断
+      const hostname = window.location.hostname
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://localhost:8088'
+      }
+      // 使用当前主机名，这样手机可以通过IP访问
+      return `http://${hostname}:8088`
+    },
     displayImages() {
       if (this.carouselImages.length === 0) {
         return []

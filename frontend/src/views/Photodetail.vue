@@ -68,12 +68,13 @@
                 height: cropBox.height + 'px'
               }"
               @mousedown="startDrag($event)"
+              @touchstart="startDrag($event)"
             >
               <!-- 裁剪框四个角的控制点 -->
-              <div class="crop-handle top-left" @mousedown="startResize($event, 'top-left')"></div>
-              <div class="crop-handle top-right" @mousedown="startResize($event, 'top-right')"></div>
-              <div class="crop-handle bottom-left" @mousedown="startResize($event, 'bottom-left')"></div>
-              <div class="crop-handle bottom-right" @mousedown="startResize($event, 'bottom-right')"></div>
+              <div class="crop-handle top-left" @mousedown="startResize($event, 'top-left')" @touchstart="startResize($event, 'top-left')"></div>
+              <div class="crop-handle top-right" @mousedown="startResize($event, 'top-right')" @touchstart="startResize($event, 'top-right')"></div>
+              <div class="crop-handle bottom-left" @mousedown="startResize($event, 'bottom-left')" @touchstart="startResize($event, 'bottom-left')"></div>
+              <div class="crop-handle bottom-right" @mousedown="startResize($event, 'bottom-right')" @touchstart="startResize($event, 'bottom-right')"></div>
             </div>
           </div>
         </div>
@@ -623,15 +624,37 @@ onUnmounted(() => {
   }
 })
 
-// 设置事件监听
+// 触摸事件处理（复用鼠标移动逻辑）
+const handleTouchMove = (event) => {
+  if (isDragging.value || isResizing.value) {
+    event.preventDefault()
+    handleMove(event)
+  }
+}
+
+const handleTouchEnd = () => {
+  handleMouseUp()
+}
+
+// 鼠标移动事件处理
+const handleMouseMove = (event) => {
+  handleMove(event)
+}
+
+// 设置事件监听（同时支持鼠标和触摸事件）
 const setupEventListeners = () => {
   document.addEventListener('mousemove', handleMouseMove)
   document.addEventListener('mouseup', handleMouseUp)
+  // 移动端触摸事件支持
+  document.addEventListener('touchmove', handleTouchMove, { passive: false })
+  document.addEventListener('touchend', handleTouchEnd)
 }
 
 const removeEventListeners = () => {
   document.removeEventListener('mousemove', handleMouseMove)
   document.removeEventListener('mouseup', handleMouseUp)
+  document.removeEventListener('touchmove', handleTouchMove)
+  document.removeEventListener('touchend', handleTouchEnd)
 }
 
 // 加载图片详情
@@ -974,7 +997,15 @@ const resetCrop = () => {
   cropBox.value = { x: 0, y: 0, width: 200, height: 200 }
 }
 
-// 鼠标事件处理
+// 获取事件坐标（支持鼠标和触摸事件）
+const getEventCoordinates = (event) => {
+  if (event.touches && event.touches.length > 0) {
+    return { x: event.touches[0].clientX, y: event.touches[0].clientY }
+  }
+  return { x: event.clientX, y: event.clientY }
+}
+
+// 鼠标/触摸事件处理
 const startDrag = (event) => {
   if (!showCropBox.value || activeEditTab.value !== 'crop') return
   
@@ -983,10 +1014,11 @@ const startDrag = (event) => {
   
   const imgRect = imageElement.value.getBoundingClientRect()
   const containerRect = imageContainer.value.getBoundingClientRect()
+  const coords = getEventCoordinates(event)
   
   dragStart.value = {
-    x: event.clientX - containerRect.left,
-    y: event.clientY - containerRect.top
+    x: coords.x - containerRect.left,
+    y: coords.y - containerRect.top
   }
   
   cropBoxStart.value = { ...cropBox.value }
@@ -999,10 +1031,11 @@ const startResize = (event, type) => {
   event.stopPropagation()
   
   const containerRect = imageContainer.value.getBoundingClientRect()
+  const coords = getEventCoordinates(event)
   
   dragStart.value = {
-    x: event.clientX - containerRect.left,
-    y: event.clientY - containerRect.top
+    x: coords.x - containerRect.left,
+    y: coords.y - containerRect.top
   }
   
   cropBoxStart.value = { ...cropBox.value }
@@ -1010,20 +1043,22 @@ const startResize = (event, type) => {
   dragType.value = type
 }
 
-const handleMouseMove = (event) => {
+// 统一的移动处理函数
+const handleMove = (event) => {
   if (!isDragging.value && !isResizing.value) return
   if (!imageContainer.value || !imageElement.value) return
   
   const containerRect = imageContainer.value.getBoundingClientRect()
   const imgRect = imageElement.value.getBoundingClientRect()
+  const coords = getEventCoordinates(event)
   
   const imgOffsetX = imgRect.left - containerRect.left
   const imgOffsetY = imgRect.top - containerRect.top
   const imgWidth = imgRect.width
   const imgHeight = imgRect.height
   
-  const currentX = event.clientX - containerRect.left
-  const currentY = event.clientY - containerRect.top
+  const currentX = coords.x - containerRect.left
+  const currentY = coords.y - containerRect.top
   const deltaX = currentX - dragStart.value.x
   const deltaY = currentY - dragStart.value.y
   

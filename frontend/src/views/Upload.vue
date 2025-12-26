@@ -71,6 +71,17 @@
           </div>
         </div>
 
+        <!-- 上传按钮（在移动端或不需要编辑时） -->
+        <div v-if="selectedFile" class="upload-actions-card">
+          <div class="upload-actions">
+            <el-button type="primary" size="large" @click="uploadImageDirect" :loading="uploading" style="width: 100%;">
+              <el-icon><Upload /></el-icon>
+              {{ uploading ? '上传中...' : '直接上传图片' }}
+            </el-button>
+            <p class="upload-hint">直接上传原始图片（移动端推荐）</p>
+          </div>
+        </div>
+
         <!-- EXIF信息面板 -->
         <div v-if="selectedFile && exifData" class="exif-panel">
           <div class="exif-card">
@@ -473,6 +484,12 @@ onUnmounted(() => {
   }
 })
 
+// 检测是否为移动设备
+const isMobileDevice = () => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+         (window.innerWidth <= 768 && 'ontouchstart' in window)
+}
+
 // 初始化Canvas尺寸
 const initCanvasSize = () => {
   if (!previewCanvas.value || canvasInitialized) return
@@ -481,25 +498,49 @@ const initCanvasSize = () => {
   const container = canvas.parentElement
   
   if (container) {
-    // 获取容器尺寸并设置固定的Canvas尺寸
+    // 获取容器尺寸
     const containerStyle = window.getComputedStyle(container)
     const paddingLeft = parseFloat(containerStyle.paddingLeft) || 0
     const paddingRight = parseFloat(containerStyle.paddingRight) || 0
+    const paddingTop = parseFloat(containerStyle.paddingTop) || 0
+    const paddingBottom = parseFloat(containerStyle.paddingBottom) || 0
     
-    // 固定Canvas尺寸为800x400，或者根据容器宽度自适应
     const containerWidth = container.clientWidth - paddingLeft - paddingRight
-    canvas.width = Math.min(800, containerWidth)
-    canvas.height = 400
+    const containerHeight = container.clientHeight - paddingTop - paddingBottom
+    
+    // 移动端自适应，桌面端固定尺寸
+    if (isMobileDevice()) {
+      // 移动端：使用容器尺寸，保持16:9比例
+      canvas.width = Math.min(containerWidth, window.innerWidth * 0.9)
+      canvas.height = Math.min(containerWidth * 0.5625, containerHeight, window.innerHeight * 0.4)
+    } else {
+      // 桌面端：固定尺寸或根据容器宽度自适应
+      canvas.width = Math.min(800, containerWidth)
+      canvas.height = 400
+    }
+    
+    // 设置Canvas显示尺寸（CSS）- 使用CSS控制显示尺寸，实际尺寸用于绘制
+    canvas.style.width = '100%'
+    canvas.style.maxWidth = '100%'
+    canvas.style.height = 'auto'
     
     canvasInitialized = true
-    console.log('Canvas尺寸初始化:', canvas.width, 'x', canvas.height)
+    console.log('Canvas尺寸初始化:', canvas.width, 'x', canvas.height, '移动设备:', isMobileDevice())
   }
 }
 
 // 获取Canvas上下文
 const getCanvasContext = () => {
   if (!canvasContext && previewCanvas.value) {
-    canvasContext = previewCanvas.value.getContext('2d')
+    canvasContext = previewCanvas.value.getContext('2d', {
+      alpha: false, // 移动端优化：禁用alpha通道可提升性能
+      willReadFrequently: false // 移动端优化
+    })
+    
+    if (!canvasContext) {
+      console.error('无法获取Canvas上下文，可能不支持Canvas')
+      ElMessage.warning('您的设备可能不支持图片编辑功能')
+    }
   }
   return canvasContext
 }
@@ -746,6 +787,20 @@ const applyFiltersToContext = () => {
   }
 }
 
+// 应用变换（缩放和旋转）
+const applyTransform = () => {
+  if (originalImage) {
+    drawImage()
+  }
+}
+
+// 应用滤镜
+const applyFilters = () => {
+  if (originalImage) {
+    drawImage()
+  }
+}
+
 // 旋转图片
 const rotate = (degrees) => {
   rotation.value = (rotation.value + degrees) % 360
@@ -946,55 +1001,84 @@ const clearSelection = () => {
   })
 }
 
+// 获取原始图片的Base64数据（用于直接上传）
+const getOriginalImageData = () => {
+  return new Promise((resolve, reject) => {
+    if (!selectedFile.value) {
+      reject(new Error('没有选择的文件'))
+      return
+    }
+    
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      resolve(e.target.result) // 返回Base64格式的data URL
+    }
+    reader.onerror = () => {
+      reject(new Error('文件读取失败'))
+    }
+    reader.readAsDataURL(selectedFile.value)
+  })
+}
+
 // 获取编辑后的图片数据（Base64）
 const getEditedImageData = () => {
   if (!previewCanvas.value || !originalImage) return null
   
-  // 创建一个临时Canvas用于导出高质量图片
-  const exportCanvas = document.createElement('canvas')
-  exportCanvas.width = originalImage.naturalWidth
-  exportCanvas.height = originalImage.naturalHeight
-  const exportCtx = exportCanvas.getContext('2d')
-  
-  // 应用所有编辑效果
-  const scaleFactor = scale.value / 100
-  const rad = rotation.value * Math.PI / 180
-  
-  // 移动到中心
-  exportCtx.translate(exportCanvas.width / 2, exportCanvas.height / 2)
-  exportCtx.rotate(rad)
-  
-  // 应用滤镜
-  let filterString = ''
-  basicControls.value.forEach(control => {
-    if (control.name === 'brightness' && control.value !== 0) {
-      filterString += `brightness(${100 + control.value}%) `
-    } else if (control.name === 'contrast' && control.value !== 0) {
-      filterString += `contrast(${100 + control.value}%) `
-    } else if (control.name === 'saturation' && control.value !== 0) {
-      filterString += `saturate(${100 + control.value}%) `
+  try {
+    // 创建一个临时Canvas用于导出高质量图片
+    const exportCanvas = document.createElement('canvas')
+    exportCanvas.width = originalImage.naturalWidth
+    exportCanvas.height = originalImage.naturalHeight
+    const exportCtx = exportCanvas.getContext('2d')
+    
+    if (!exportCtx) {
+      console.warn('Canvas上下文不可用，使用原始图片')
+      return null
     }
-  })
-  
-  if (filterString) {
-    exportCtx.filter = filterString.trim()
+    
+    // 应用所有编辑效果
+    const scaleFactor = scale.value / 100
+    const rad = rotation.value * Math.PI / 180
+    
+    // 移动到中心
+    exportCtx.translate(exportCanvas.width / 2, exportCanvas.height / 2)
+    exportCtx.rotate(rad)
+    
+    // 应用滤镜
+    let filterString = ''
+    basicControls.value.forEach(control => {
+      if (control.name === 'brightness' && control.value !== 0) {
+        filterString += `brightness(${100 + control.value}%) `
+      } else if (control.name === 'contrast' && control.value !== 0) {
+        filterString += `contrast(${100 + control.value}%) `
+      } else if (control.name === 'saturation' && control.value !== 0) {
+        filterString += `saturate(${100 + control.value}%) `
+      }
+    })
+    
+    if (filterString) {
+      exportCtx.filter = filterString.trim()
+    }
+    
+    // 绘制图片
+    exportCtx.drawImage(
+      originalImage,
+      -originalImage.naturalWidth * scaleFactor / 2,
+      -originalImage.naturalHeight * scaleFactor / 2,
+      originalImage.naturalWidth * scaleFactor,
+      originalImage.naturalHeight * scaleFactor
+    )
+    
+    // 返回Base64格式
+    return exportCanvas.toDataURL('image/jpeg', 0.9)
+  } catch (error) {
+    console.warn('Canvas编辑失败，将使用原始图片:', error)
+    return null
   }
-  
-  // 绘制图片
-  exportCtx.drawImage(
-    originalImage,
-    -originalImage.naturalWidth * scaleFactor / 2,
-    -originalImage.naturalHeight * scaleFactor / 2,
-    originalImage.naturalWidth * scaleFactor,
-    originalImage.naturalHeight * scaleFactor
-  )
-  
-  // 返回Base64格式
-  return exportCanvas.toDataURL('image/jpeg', 0.9)
 }
 
-// 上传图片
-const uploadImage = async () => {
+// 直接上传原始图片（移动端友好）
+const uploadImageDirect = async () => {
   if (!selectedFile.value) {
     ElMessage.warning('请先选择图片')
     return
@@ -1003,18 +1087,15 @@ const uploadImage = async () => {
   uploading.value = true
   
   try {
-    // 获取编辑后的图片数据
-    const editedImageData = getEditedImageData()
-    if (!editedImageData) {
-      throw new Error('无法获取编辑后的图片数据')
-    }
+    // 获取原始图片的Base64数据
+    const originalImageData = await getOriginalImageData()
     
     // 准备上传数据
     const uploadData = {
-      editedImage: editedImageData,
+      editedImage: originalImageData, // 使用原始图片
       tags: selectedTags.value,
       exifData: exifData.value,
-      name: imageName.value.trim(),
+      name: imageName.value.trim() || selectedFile.value.name.substring(0, selectedFile.value.name.lastIndexOf('.')) || selectedFile.value.name,
       description: imageDescription.value.trim(),
       size: selectedFile.value.size
     }
@@ -1040,7 +1121,67 @@ const uploadImage = async () => {
     
   } catch (error) {
     console.error('上传失败:', error)
-    ElMessage.error('上传失败: ' + error.message)
+    ElMessage.error('上传失败: ' + (error.message || '未知错误'))
+  } finally {
+    uploading.value = false
+  }
+}
+
+// 上传图片（支持编辑后的图片）
+const uploadImage = async () => {
+  if (!selectedFile.value) {
+    ElMessage.warning('请先选择图片')
+    return
+  }
+  
+  uploading.value = true
+  
+  try {
+    // 尝试获取编辑后的图片数据
+    let imageData = getEditedImageData()
+    
+    // 如果Canvas不可用或获取失败，使用原始图片
+    if (!imageData) {
+      console.log('Canvas不可用，使用原始图片上传')
+      imageData = await getOriginalImageData()
+    }
+    
+    if (!imageData) {
+      throw new Error('无法获取图片数据')
+    }
+    
+    // 准备上传数据
+    const uploadData = {
+      editedImage: imageData,
+      tags: selectedTags.value,
+      exifData: exifData.value,
+      name: imageName.value.trim() || selectedFile.value.name.substring(0, selectedFile.value.name.lastIndexOf('.')) || selectedFile.value.name,
+      description: imageDescription.value.trim(),
+      size: selectedFile.value.size
+    }
+    
+    // 上传到后端
+    const response = await axios.post(
+      `/upload/${userId.value}`,
+      uploadData,
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+    
+    if (response.data && response.data.message === '上传成功') {
+      ElMessage.success('图片上传成功！')
+      clearSelection()
+      router.push(`/gallery/${userId.value}`)
+    } else {
+      throw new Error(response.data?.message || '上传失败')
+    }
+    
+  } catch (error) {
+    console.error('上传失败:', error)
+    ElMessage.error('上传失败: ' + (error.message || '未知错误'))
   } finally {
     uploading.value = false
   }
@@ -1252,6 +1393,25 @@ const handleResize = () => {
   gap: 0.5rem;
 }
 
+/* 上传操作区域 */
+.upload-actions-card {
+  margin: 1.5rem;
+  background: #1a1a1a;
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid #333;
+}
+
+.upload-actions {
+  text-align: center;
+}
+
+.upload-hint {
+  margin-top: 0.75rem;
+  color: #888;
+  font-size: 0.85rem;
+}
+
 /* 上传区域 */
 .upload-area {
   border: 2px dashed #444;
@@ -1384,6 +1544,16 @@ const handleResize = () => {
   border-radius: 8px;
   margin: 1.5rem;
   border: 1px solid #444;
+}
+
+.preview-canvas {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  background: #2a2a2a;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .preview-image {
@@ -1924,6 +2094,52 @@ const handleResize = () => {
   .action-buttons {
     width: 100%;
     justify-content: flex-end;
+  }
+  
+  /* 移动端编辑布局优化 */
+  .edit-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .preview-content-large {
+    padding: 1rem;
+    margin: 1rem;
+  }
+  
+  .preview-canvas {
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+  }
+  
+  /* 移动端控件优化 */
+  .control-group {
+    margin-left: 1rem;
+    margin-right: 1rem;
+  }
+  
+  .slider-container {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .rotation-buttons {
+    flex-direction: row;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  
+  .rotation-buttons .el-button {
+    flex: 1;
+  }
+  
+  /* 移动端标签输入优化 */
+  .tag-input-group {
+    flex-direction: column;
+  }
+  
+  .tag-input-group .el-input {
+    margin-bottom: 0.5rem;
   }
 }
 </style>
