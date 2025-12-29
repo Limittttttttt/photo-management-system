@@ -76,9 +76,8 @@
           <div class="upload-actions">
             <el-button type="primary" size="large" @click="uploadImageDirect" :loading="uploading" style="width: 100%;">
               <el-icon><Upload /></el-icon>
-              {{ uploading ? '上传中...' : '直接上传图片' }}
+              {{ uploading ? '上传中...' : '上传图片' }}
             </el-button>
-            <p class="upload-hint">直接上传原始图片（移动端推荐）</p>
           </div>
         </div>
 

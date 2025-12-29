@@ -1,0 +1,10 @@
+node_modules
+target
+.git
+.idea
+.vscode
+*.iml
+*.log
+mysql/data
+dist
+

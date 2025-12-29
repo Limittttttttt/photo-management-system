@@ -258,32 +258,6 @@ const performSearch = async () => {
   }
 }
 
-// 获取搜索建议
-const fetchSuggestions = async (query, cb) => {
-  const userId = getUserId()
-  if (!userId || !query.trim()) {
-    cb([])
-    return
-  }
-
-  try {
-    const response = await axios.get('/aisearch/suggestions', {
-      params: { userId, prefix: query }
-    })
-
-    if (response.data.success) {
-      const suggestions = (response.data.suggestions || []).map(text => ({
-        value: text
-      }))
-      cb(suggestions)
-    } else {
-      cb([])
-    }
-  } catch {
-    cb([])
-  }
-}
-
 // 处理选择建议
 const handleSelectSuggestion = (item) => {
   searchQuery.value = item.value
