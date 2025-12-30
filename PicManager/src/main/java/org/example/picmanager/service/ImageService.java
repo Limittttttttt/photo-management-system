@@ -1,11 +1,6 @@
 package org.example.picmanager.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.drew.imaging.ImageMetadataReader;
-import com.drew.metadata.Directory;
-import com.drew.metadata.Metadata;
-import com.drew.metadata.exif.ExifSubIFDDirectory;
-import com.drew.metadata.exif.GpsDirectory;
 import jakarta.transaction.Transactional;
 import org.example.picmanager.entity.Image;
 import org.example.picmanager.entity.ImageTag;

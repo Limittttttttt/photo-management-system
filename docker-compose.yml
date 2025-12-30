@@ -54,11 +54,13 @@ services:
     container_name: photo-frontend
     restart: always
     ports:
-      - "80:80"
+      - "0.0.0.0:80:80"  # 关键修改
     depends_on:
       - backend
     networks:
       - photo-network
+    extra_hosts:  # 添加主机映射
+      - "host.docker.internal:host-gateway"
 
 networks:
   photo-network:

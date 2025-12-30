@@ -1,7 +1,6 @@
 package org.example.picmanager.service;
 
 import org.example.picmanager.entity.Tag;
-import org.example.picmanager.mapper.ImageTagMapper;
 import org.example.picmanager.mapper.TagMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

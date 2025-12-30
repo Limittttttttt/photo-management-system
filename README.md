@@ -41,6 +41,10 @@
    - 后端API: http://localhost:8088
    - MySQL: localhost:3306 (用户名: root, 密码: root)
 
+   **在手机浏览器中访问**
+   - 打开手机浏览器
+   - 输入地址：`http://电脑IP地址`
+
 4. **查看日志**
 
    ```bash
