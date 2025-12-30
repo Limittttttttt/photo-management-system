@@ -359,6 +359,12 @@ const saveProfile = async () => {
     ElMessage.error('请输入邮箱')
     return
   }
+
+  // 用户名长度限制
+  if (profileForm.username.trim().length < 6) {
+    ElMessage.error('用户名长度不能小于6个字符')
+    return
+  }
   
   // 邮箱格式验证
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
