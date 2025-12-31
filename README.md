@@ -59,6 +59,29 @@
 
 详细的 Docker 使用说明请参考 [DOCKER_README.md](./DOCKER_README.md)
 
+### 准备干净系统（用于提交/演示）
+
+如果需要将系统重置为初始状态（清理所有用户数据和图片），请执行：
+
+**Windows:**
+```bash
+prepare-clean-system.bat
+```
+
+**Linux/Mac:**
+```bash
+chmod +x prepare-clean-system.sh
+./prepare-clean-system.sh
+```
+
+此脚本将：
+- 停止所有服务
+- 删除所有数据卷（包含用户数据）
+- 清理Docker镜像和网络
+- 重新构建镜像
+
+执行完成后，系统将在下次启动时自动创建干净的数据库结构。
+
 ### 本地开发
 
 #### 前端开发
